@@ -57,6 +57,12 @@ button { font: inherit; }
 }
 .book.open .cover { transform: rotateY(-180deg); }
 .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.face * { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+/* Some browsers let the front's contents show through mirrored; swap faces by visibility at the halfway point of the turn */
+.front { visibility: visible; transition: visibility 0s linear .6s; }
+.back { visibility: hidden; transition: visibility 0s linear .6s; }
+.book.open .front { visibility: hidden; }
+.book.open .back { visibility: visible; }
 
 /* front of the cover */
 .front {
