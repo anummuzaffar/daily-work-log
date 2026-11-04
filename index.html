@@ -76,7 +76,17 @@ td.proj, td.notes { color: var(--muted); }
 .task { font-weight: 500; }
 .pill { display: inline-block; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
 .pill.done { color: var(--done); background: var(--done-bg); } .pill.in_progress { color: var(--prog); background: var(--prog-bg); }
-.pill.pending { color: var(--pend); background: var(--pend-bg); } .pill.blocked { color: var(--block); background: var(--block-bg); }
+.pill.pending { color: var(--pend); background: var(--pend-bg); } .pill.blocked, .pill.not_done { color: var(--block); background: var(--block-bg); }
+.grid th, .grid td { text-align: center; white-space: nowrap; padding: 8px 10px; }
+.grid th.rt, .grid td.rt { text-align: left; position: sticky; left: 0; background: var(--surface); min-width: 220px; white-space: normal; }
+.grid td.rt { font-weight: 500; }
+.grid th .wd { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.mark { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; font-weight: 700; font-size: 14px; }
+.mark.y { color: var(--done); background: var(--done-bg); }
+.mark.n { color: var(--block); background: var(--block-bg); }
+.mark.o { color: var(--prog); background: var(--prog-bg); }
+.mark.e { color: var(--muted); }
+.grid td.sum { font-family: var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .state { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 28px; text-align: center; color: var(--muted); }
 @media (max-width: 560px) { th.proj, td.proj { display: none; } td, th { padding-left: 10px; padding-right: 10px; } }
 </style>
@@ -104,7 +114,7 @@ td.proj, td.notes { color: var(--muted); }
     <div class="grp"><label for="from">From</label><input class="field" type="date" id="from"></div>
     <div class="grp"><label for="to">To</label><input class="field" type="date" id="to"></div>
     <div class="grp"><label for="status">Status</label>
-      <select class="field" id="status"><option value="all">All</option><option value="done">Done</option><option value="in_progress">In progress</option><option value="pending">Pending</option><option value="blocked">Blocked</option></select></div>
+      <select class="field" id="status"><option value="all">All</option><option value="done">Done</option><option value="not_done">Not done</option><option value="in_progress">In progress</option><option value="pending">Pending</option><option value="blocked">Blocked</option></select></div>
     <div class="grp"><label for="project">Project</label><select class="field" id="project"><option value="all">All</option></select></div>
     <div class="grp grow"><label for="q">Search</label><input class="field" type="search" id="q" placeholder="Task, project or note"></div>
     <button class="btn" id="xlsx" type="button">
@@ -116,10 +126,16 @@ td.proj, td.notes { color: var(--muted); }
   <section class="kpis" aria-label="Summary">
     <div class="kpi"><span>Tasks</span><b id="k-total">–</b><small id="k-days"></small></div>
     <div class="kpi done"><span>Done</span><b id="k-done">–</b></div>
-    <div class="kpi prog"><span>In progress</span><b id="k-prog">–</b></div>
-    <div class="kpi"><span>Pending</span><b id="k-pend">–</b></div>
-    <div class="kpi block"><span>Blocked</span><b id="k-block">–</b></div>
+    <div class="kpi block"><span>Not done</span><b id="k-not">–</b></div>
+    <div class="kpi prog" id="kw-prog" hidden><span>In progress</span><b id="k-prog">–</b></div>
+    <div class="kpi" id="kw-pend" hidden><span>Pending</span><b id="k-pend">–</b></div>
+    <div class="kpi block" id="kw-block" hidden><span>Blocked</span><b id="k-block">–</b></div>
     <div class="kpi rate"><span>Completion</span><b id="k-rate">–</b></div>
+  </section>
+
+  <section class="panel" id="checklist-panel" hidden>
+    <h2>Daily checklist</h2>
+    <div class="scroll"><table class="grid" id="checklist"></table></div>
   </section>
 
   <section class="charts">
@@ -134,8 +150,8 @@ td.proj, td.notes { color: var(--muted); }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
-  const LABEL = { done: "Done", in_progress: "In progress", pending: "Pending", blocked: "Blocked" };
-  const ORDER = ["done", "in_progress", "pending", "blocked"];
+  const LABEL = { done: "Done", not_done: "Not done", in_progress: "In progress", pending: "Pending", blocked: "Blocked" };
+  const ORDER = ["done", "not_done", "in_progress", "pending", "blocked"];
   const $ = (id) => document.getElementById(id);
   let DATA = { days: [] }, rows = [], charts = {};
 
@@ -172,19 +188,57 @@ td.proj, td.notes { color: var(--muted); }
     const dates = [...new Set(list.map((r) => r.date))].sort();
     $("k-total").textContent = list.length;
     $("k-days").textContent = dates.length + (dates.length === 1 ? " day" : " days");
-    $("k-done").textContent = c("done"); $("k-prog").textContent = c("in_progress");
+    $("k-done").textContent = c("done"); $("k-not").textContent = c("not_done"); $("k-prog").textContent = c("in_progress");
     $("k-pend").textContent = c("pending"); $("k-block").textContent = c("blocked");
+    $("kw-prog").hidden = !c("in_progress"); $("kw-pend").hidden = !c("pending"); $("kw-block").hidden = !c("blocked");
     $("k-rate").textContent = list.length ? Math.round((c("done") / list.length) * 100) + "%" : "–";
+    drawChecklist();
     drawCharts(list, dates);
     drawDays(list);
   }
 
+  // Checklist grid: routine tasks (rows) x days in period (columns)
+  function checklistData() {
+    const routine = DATA.routine || [];
+    const from = $("from").value || "0000", to = $("to").value || "9999";
+    const dates = [...new Set(rows.filter((r) => r.date >= from && r.date <= to).map((r) => r.date))].sort();
+    const cell = (rt, d) => rows.find((r) => r.date === d && (r.rid === rt.id || r.task === rt.task));
+    return { routine, dates, cell };
+  }
+  function drawChecklist() {
+    const { routine, dates, cell } = checklistData();
+    $("checklist-panel").hidden = !routine.length;
+    const t = $("checklist"); t.replaceChildren();
+    if (!routine.length) return;
+    if (!dates.length) { const tr = el("tr"); tr.append(el("td", "rt", "No days logged in this period yet.")); t.append(tr); return; }
+    const thead = el("thead"), hr = el("tr");
+    hr.append(el("th", "rt", "Task"));
+    dates.forEach((d) => { const th = el("th", null, short(d)); th.append(el("span", "wd", parse(d).toLocaleDateString("en-GB", { weekday: "short" }))); hr.append(th); });
+    hr.append(el("th", null, "Done"));
+    thead.append(hr); t.append(thead);
+    const tb = el("tbody");
+    routine.forEach((rt) => {
+      const tr = el("tr"); tr.append(el("td", "rt", rt.id + ". " + rt.task));
+      let done = 0, logged = 0;
+      dates.forEach((d) => {
+        const r = cell(rt, d); const td = el("td");
+        let cls = "e", sym = "–", tip = "Not logged";
+        if (r) { logged++; tip = LABEL[r.status] + (r.notes ? ": " + r.notes : "");
+          if (r.status === "done") { cls = "y"; sym = "✓"; done++; } else if (r.status === "not_done" || r.status === "blocked") { cls = "n"; sym = "✗"; } else { cls = "o"; sym = "•"; } }
+        const m = el("span", "mark " + cls, sym); m.title = tip; m.setAttribute("aria-label", tip); td.append(m); tr.append(td);
+      });
+      tr.append(el("td", "sum", done + "/" + logged));
+      tb.append(tr);
+    });
+    t.append(tb);
+  }
+
   function drawCharts(list, dates) {
     if (!window.Chart) return;
-    const color = { done: css("--done"), in_progress: css("--prog"), pending: css("--pend"), blocked: css("--block") };
+    const color = { done: css("--done"), not_done: css("--block"), in_progress: css("--prog"), pending: css("--pend"), blocked: css("--block") };
     const grid = css("--line"), text = css("--muted");
     Chart.defaults.color = text; Chart.defaults.font.family = css("--f-body");
-    const ds = ORDER.map((s) => ({ label: LABEL[s], backgroundColor: color[s], borderRadius: 3, data: dates.map((d) => list.filter((r) => r.date === d && r.status === s).length) }));
+    const ds = ORDER.filter((s) => list.some((r) => r.status === s)).map((s) => ({ label: LABEL[s], backgroundColor: color[s], borderRadius: 3, data: dates.map((d) => list.filter((r) => r.date === d && r.status === s).length) }));
     charts.days && charts.days.destroy();
     charts.days = new Chart($("c-days"), { type: "bar", data: { labels: dates.map(short), datasets: ds },
       options: { maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10 } } },
@@ -259,6 +313,20 @@ td.proj, td.notes { color: var(--muted); }
     ws2["!autofilter"] = { ref: "A1:G" + body.length };
     XLSX.utils.book_append_sheet(wb, ws2, "Tasks");
 
+    const cl = checklistData();
+    if (cl.routine.length && cl.dates.length) {
+      const grid = [["Task", ...cl.dates.map((d) => d + " (" + parse(d).toLocaleDateString("en-GB", { weekday: "short" }) + ")"), "Done", "Logged"]];
+      cl.routine.forEach((rt) => {
+        let done = 0, logged = 0;
+        const cells = cl.dates.map((d) => { const r = cl.cell(rt, d); if (!r) return "-"; logged++;
+          if (r.status === "done") { done++; return "Yes"; } return r.status === "not_done" ? "No" : LABEL[r.status]; });
+        grid.push([rt.id + ". " + rt.task, ...cells, done, logged]);
+      });
+      const ws3 = XLSX.utils.aoa_to_sheet(grid);
+      ws3["!cols"] = [{ wch: 46 }, ...cl.dates.map(() => ({ wch: 17 })), { wch: 7 }, { wch: 8 }];
+      XLSX.utils.book_append_sheet(wb, ws3, "Checklist");
+    }
+
     XLSX.writeFile(wb, "Work-Report_" + (from === to ? from : from + "_to_" + to) + ".xlsx");
   }
 
@@ -275,7 +343,7 @@ td.proj, td.notes { color: var(--muted); }
       DATA = data;
       if (data.title) { $("title").textContent = data.title; document.title = data.title; }
       if (data.updated) $("updated").textContent = "Last updated " + new Date(data.updated).toLocaleString("en-GB");
-      rows = (data.days || []).flatMap((d) => (d.tasks || []).map((t) => ({ date: d.date, task: t.task || "", project: t.project || "", status: t.status || "pending", notes: t.notes || "" })));
+      rows = (data.days || []).flatMap((d) => (d.tasks || []).map((t) => ({ date: d.date, rid: t.rid, task: t.task || "", project: t.project || "", status: t.status || "pending", notes: t.notes || "" })));
       const projects = [...new Set(rows.map((r) => r.project).filter(Boolean))].sort();
       projects.forEach((p) => { const o = el("option", null, p); o.value = p; $("project").append(o); });
       setPreset("week");
