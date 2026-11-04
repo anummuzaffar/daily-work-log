@@ -46,6 +46,7 @@ input, select, button { font: inherit; color: var(--fg); }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--done); background: var(--done); color: #fff; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .btn svg { width: 16px; height: 16px; }
+.btn.pdf { background: var(--block); border-color: var(--block); }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
@@ -121,6 +122,10 @@ td.proj, td.notes { color: var(--muted); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
       Download Excel report
     </button>
+    <button class="btn pdf" id="pdf" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Download PDF report
+    </button>
   </section>
 
   <section class="kpis" aria-label="Summary">
@@ -148,6 +153,8 @@ td.proj, td.notes { color: var(--muted); }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 (function () {
   const LABEL = { done: "Done", not_done: "Not done", in_progress: "In progress", pending: "Pending", blocked: "Blocked" };
@@ -330,7 +337,123 @@ td.proj, td.notes { color: var(--muted); }
     XLSX.writeFile(wb, "Work-Report_" + (from === to ? from : from + "_to_" + to) + ".xlsx");
   }
 
+  // One-page A4 PDF: header, summary, then one line per task with its status
+  function downloadPdf() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { alert("The PDF library didn't load. Check your connection and reload."); return; }
+    const list = filtered().slice().sort((a, b) => a.date.localeCompare(b.date));
+    const from = $("from").value, to = $("to").value;
+    const dates = [...new Set(list.map((r) => r.date))].sort();
+    const c = (s) => list.filter((r) => r.status === s).length;
+    const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    const W = 210, M = 16;
+    const TEAL = [15, 110, 120], INK = [22, 33, 42], GREY = [93, 107, 118];
+    const ST = { done: { t: [31, 122, 67], f: [227, 244, 233] }, not_done: { t: [180, 46, 46], f: [251, 229, 229] }, blocked: { t: [180, 46, 46], f: [251, 229, 229] },
+      in_progress: { t: [154, 91, 0], f: [251, 239, 217] }, pending: { t: [75, 90, 102], f: [233, 237, 240] } };
+
+    // header band
+    doc.setFillColor(...TEAL); doc.rect(0, 0, W, 30, "F");
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(19);
+    doc.text("Daily Work Report", M, 15);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    const period = !dates.length ? (from === to ? nice(from) : nice(from) + "  to  " + nice(to))
+      : dates.length === 1 ? nice(dates[0]) : nice(from) + "  to  " + nice(to);
+    doc.text(period, M, 23);
+    doc.text("Generated " + new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), W - M, 23, { align: "right" });
+
+    // summary strip
+    const rate = list.length ? Math.round((c("done") / list.length) * 100) + "%" : "-";
+    const boxes = [["Total tasks", String(list.length)], ["Done", String(c("done"))], ["Not done", String(c("not_done") + c("blocked"))], ["Completion", rate]];
+    const bw = (W - 2 * M - 3 * 4) / 4; let y = 38;
+    boxes.forEach(([l, v], i) => {
+      const x = M + i * (bw + 4);
+      doc.setDrawColor(221, 227, 231); doc.setFillColor(247, 249, 250); doc.roundedRect(x, y, bw, 17, 2, 2, "FD");
+      doc.setTextColor(...GREY); doc.setFontSize(8); doc.text(l.toUpperCase(), x + 4, y + 6);
+      const col = i === 1 ? ST.done.t : i === 2 ? ST.not_done.t : i === 3 ? TEAL : INK;
+      doc.setTextColor(...col); doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.text(v, x + 4, y + 14);
+      doc.setFont("helvetica", "normal");
+    });
+    y += 25;
+
+    const statusCell = (data, col) => {
+      if (data.section === "body" && data.column.index === col) {
+        const key = data.cell.raw && data.cell.raw.key;
+        if (key && ST[key]) { data.cell.styles.textColor = ST[key].t; data.cell.styles.fillColor = ST[key].f; data.cell.styles.fontStyle = "bold"; }
+        if (data.cell.raw && data.cell.raw.content != null) data.cell.text = [data.cell.raw.content];
+      }
+    };
+    const common = { theme: "grid", margin: { left: M, right: M }, headStyles: { fillColor: INK, textColor: 255, fontSize: 9, fontStyle: "bold" },
+      styles: { fontSize: 9.5, cellPadding: 2.6, textColor: INK, lineColor: [221, 227, 231], lineWidth: 0.2, valign: "middle", overflow: "linebreak" } };
+
+    if (!list.length) {
+      doc.setTextColor(...GREY); doc.setFontSize(11); doc.text("No tasks logged for this period.", M, y + 6);
+    } else if (dates.length === 1) {
+      // single day: # | Task | Status | Notes
+      doc.setTextColor(...INK); doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Tasks", M, y); y += 3;
+      doc.autoTable({ ...common, startY: y,
+        head: [["#", "Task", "Status", "Notes"]],
+        body: list.map((r, i) => [String(i + 1), r.task, { content: LABEL[r.status] || r.status, key: r.status, styles: { halign: "center" } }, r.notes || ""]),
+        columnStyles: { 0: { cellWidth: 9, halign: "center" }, 1: { cellWidth: 82 }, 2: { cellWidth: 26 }, 3: { cellWidth: "auto", textColor: GREY } },
+        didParseCell: (d) => statusCell(d, 2) });
+    } else {
+      // several days: one line per task, status per day, plus done count
+      const routine = DATA.routine || [];
+      const tasks = routine.length ? routine.map((rt) => ({ label: rt.id + ". " + rt.task, match: (r) => r.rid === rt.id || r.task === rt.task })) : [];
+      list.filter((r) => !routine.some((rt) => r.rid === rt.id || r.task === rt.task)).forEach((r) => {
+        if (!tasks.some((t) => t.label === r.task)) tasks.push({ label: r.task, match: (x) => x.task === r.task && !x.rid });
+      });
+      const wide = dates.length <= 10;
+      doc.setTextColor(...INK); doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Tasks by day", M, y); y += 3;
+      if (wide) {
+        doc.autoTable({ ...common, startY: y,
+          head: [["Task", ...dates.map((d) => parse(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" })), "Done"]],
+          body: tasks.map((t) => {
+            let done = 0, logged = 0;
+            const cells = dates.map((d) => { const r = list.find((x) => x.date === d && t.match(x)); if (!r) return { content: "-", styles: { halign: "center", textColor: GREY } };
+              logged++; if (r.status === "done") done++;
+              return { content: r.status === "done" ? "Yes" : r.status === "not_done" ? "No" : (LABEL[r.status] || r.status), key: r.status, styles: { halign: "center" } }; });
+            return [t.label, ...cells, { content: done + "/" + logged, styles: { halign: "center", fontStyle: "bold" } }];
+          }),
+          styles: { ...common.styles, fontSize: dates.length > 7 ? 8 : 9 },
+          columnStyles: { 0: { cellWidth: dates.length > 7 ? 58 : 70 } },
+          didParseCell: (d) => { if (d.section === "body" && d.column.index > 0 && d.column.index <= dates.length) statusCell(d, d.column.index); } });
+      } else {
+        doc.autoTable({ ...common, startY: y,
+          head: [["Task", "Done", "Not done", "Days logged", "Status"]],
+          body: tasks.map((t) => {
+            const rs = list.filter(t.match); const dn = rs.filter((r) => r.status === "done").length;
+            const pct = rs.length ? Math.round((dn / rs.length) * 100) : 0;
+            const key = pct >= 80 ? "done" : pct >= 50 ? "in_progress" : "not_done";
+            return [t.label, String(dn), String(rs.length - dn), String(rs.length), { content: pct + "% done", key, styles: { halign: "center" } }];
+          }),
+          columnStyles: { 0: { cellWidth: 82 }, 1: { halign: "center" }, 2: { halign: "center" }, 3: { halign: "center" } },
+          didParseCell: (d) => statusCell(d, 4) });
+      }
+      // notes, as many as fit on the page
+      const notes = list.filter((r) => r.notes);
+      let ny = doc.lastAutoTable.finalY + 9;
+      if (notes.length && ny < 255) {
+        doc.setTextColor(...INK); doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("Notes", M, ny); ny += 6;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+        for (const r of notes) {
+          const line = doc.splitTextToSize(short(r.date) + "  " + r.task + ": " + r.notes, W - 2 * M);
+          if (ny + line.length * 4.5 > 272) { doc.setTextColor(...GREY); doc.text("More notes in the Excel report.", M, ny); break; }
+          doc.setTextColor(...GREY); doc.text(line, M, ny); ny += line.length * 4.5 + 1;
+        }
+      }
+    }
+
+    // footer
+    doc.setDrawColor(221, 227, 231); doc.line(M, 282, W - M, 282);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+    doc.text("Live dashboard: " + location.href.split("?")[0].split("#")[0], M, 287);
+    doc.text("Page 1 of 1", W - M, 287, { align: "right" });
+
+    const name = !dates.length ? from : dates.length === 1 ? dates[0] : from + "_to_" + to;
+    doc.save("Work-Report_" + name + ".pdf");
+  }
+
   document.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => setPreset(b.dataset.p)));
+  $("pdf").addEventListener("click", downloadPdf);
   ["from", "to"].forEach((id) => $(id).addEventListener("change", () => { document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", "false")); update(); }));
   ["status", "project"].forEach((id) => $(id).addEventListener("change", update));
   $("q").addEventListener("input", update);
