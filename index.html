@@ -32,7 +32,7 @@ button { font: inherit; }
 
 /* ---------- book ---------- */
 .book {
-  --pw: min(430px, 45vw); --ph: calc(var(--pw) * 1.36);
+  --pw: min(430px, 45vw); --ph: max(680px, calc(var(--pw) * 1.58));
   position: relative; width: calc(var(--pw) * 2); height: var(--ph);
   perspective: 2400px;
   transform: translateX(calc(var(--pw) / -2));
@@ -113,7 +113,7 @@ button { font: inherit; }
 .link.alt { background: transparent; color: var(--cover); border: 2px solid var(--cover); }
 
 /* ---------- the day's page ---------- */
-.sheet { height: 100%; display: flex; flex-direction: column; padding: 40px 26px 18px; gap: 14px; transform-origin: left center; }
+.sheet { height: 100%; display: flex; flex-direction: column; padding: 38px 26px 16px; gap: 12px; transform-origin: left center; }
 @media (prefers-reduced-motion: no-preference) {
   .sheet.out-next { animation: outNext .32s ease-in forwards; }
   .sheet.in-next  { animation: inNext .38s ease-out; }
@@ -133,9 +133,9 @@ button { font: inherit; }
 .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; font-weight: 800; }
 
-.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; overflow: auto; flex: 1; min-height: 0; }
-.task { --c: var(--c1); display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--c) 11%, var(--paper)); border: 1.5px solid color-mix(in srgb, var(--c) 30%, transparent); }
-.num { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; font-weight: 800; color: #fff; background: var(--c); box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 60%, #000); }
+.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; overflow: auto; flex: 1; min-height: 0; }
+.task { --c: var(--c1); display: flex; align-items: center; gap: 12px; padding: 7px 12px; border-radius: 14px; background: color-mix(in srgb, var(--c) 11%, var(--paper)); border: 1.5px solid color-mix(in srgb, var(--c) 30%, transparent); }
+.num { flex: none; width: 30px; height: 30px; border-radius: 11px; display: grid; place-items: center; font-weight: 800; color: #fff; background: var(--c); box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 60%, #000); }
 .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .txt .t { font-weight: 700; font-size: 14.5px; line-height: 1.25; }
 .txt .n { font-size: 12.5px; color: var(--ink-soft); }
@@ -143,6 +143,8 @@ button { font: inherit; }
 .stamp.done { color: var(--done); background: var(--done-bg); }
 .stamp.not { color: var(--not); background: var(--not-bg); }
 .stamp.other { color: #8a5a00; background: #fff0cf; }
+.stamp.none { color: var(--ink-soft); background: #efe8dd; }
+.task.unlogged { opacity: .6; border-style: dashed; }
 .empty { flex: 1; display: grid; place-items: center; text-align: center; color: var(--ink-soft); padding: 20px; }
 
 .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -157,7 +159,7 @@ button { font: inherit; }
 
 /* ---------- phone: single page ---------- */
 @media (max-width: 760px) {
-  .book { --pw: min(92vw, 420px); --ph: max(560px, calc(var(--pw) * 1.45)); width: var(--pw); transform: none; }
+  .book { --pw: min(92vw, 420px); --ph: max(720px, calc(var(--pw) * 1.7)); width: var(--pw); transform: none; }
   .book.open { transform: none; }
   .page, .cover { left: 0; }
   .book.open .cover { transform: rotateY(-180deg) translateX(-10px); }
@@ -219,7 +221,7 @@ button { font: inherit; }
   const $ = (id) => document.getElementById(id);
   const book = $("book"), cover = $("cover");
   const COLORS = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
-  const LABEL = { done: "Done ✓", not_done: "Not done ✗", in_progress: "In progress", pending: "Pending", blocked: "Blocked" };
+  const LABEL = { done: "Done ✓", not_done: "Not done ✗", in_progress: "In progress", pending: "Pending", blocked: "Blocked", none: "Not logged" };
   let days = [], idx = 0;   // days oldest → newest; idx = current page
 
   const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
@@ -256,13 +258,22 @@ button { font: inherit; }
     wrap.setAttribute("aria-label", done + " of " + total + " tasks done");
     return wrap;
   }
+  // every page lists all routine tasks; ones without an answer that day show "Not logged"
+  let routine = [];
+  function withRoutine(day) {
+    const logged = day.tasks || [];
+    const match = (rt) => logged.find((t) => t.rid === rt.id || t.task === rt.task);
+    const list = routine.map((rt) => match(rt) || { rid: rt.id, task: rt.task, status: "none", notes: "" });
+    logged.forEach((t) => { if (!routine.some((rt) => t.rid === rt.id || t.task === rt.task)) list.push(t); });
+    return list;
+  }
   function renderPage() {
     const sheet = $("sheet"); sheet.replaceChildren();
     if (!days.length) {
       sheet.append(el("div", "empty", "No days logged yet. The first page will appear here soon."));
       return;
     }
-    const day = days[idx], tasks = day.tasks || [];
+    const day = days[idx], tasks = withRoutine(day);
     const done = tasks.filter((t) => t.status === "done").length;
     const head = el("div", "day-head"), when = el("div", "when");
     when.append(el("div", "weekday", fmt(day.date, { weekday: "long" })), el("div", "date", fmt(day.date, { day: "numeric", month: "long", year: "numeric" })));
@@ -276,7 +287,8 @@ button { font: inherit; }
         const li = el("li", "task"); li.style.setProperty("--c", "var(" + COLORS[i % COLORS.length] + ")");
         const txt = el("div", "txt"); txt.append(el("span", "t", t.task));
         if (t.notes) txt.append(el("span", "n", t.notes));
-        const cls = t.status === "done" ? "done" : (t.status === "not_done" || t.status === "blocked") ? "not" : "other";
+        const cls = t.status === "done" ? "done" : (t.status === "not_done" || t.status === "blocked") ? "not" : t.status === "none" ? "none" : "other";
+        if (t.status === "none") li.classList.add("unlogged");
         li.append(el("span", "num", String(i + 1)), txt, el("span", "stamp " + cls, LABEL[t.status] || t.status));
         ul.append(li);
       });
@@ -309,7 +321,7 @@ button { font: inherit; }
       b.setAttribute("aria-current", String(i === idx));
       b.append(el("span", "d", fmt(d.date, { weekday: "short", day: "numeric", month: "short" })));
       const dots = el("span", "dots");
-      (d.tasks || []).forEach((t) => dots.append(el("i", t.status === "done" ? "y" : "")));
+      withRoutine(d).forEach((t) => { const i = el("i", t.status === "done" ? "y" : ""); if (t.status === "none") i.style.background = "#ddd2c2"; dots.append(i); });
       b.append(dots);
       b.addEventListener("click", () => turn(i, i > idx ? "next" : "prev"));
       li.append(b); toc.append(li);
@@ -326,6 +338,7 @@ button { font: inherit; }
   fetch("data/tasks.json?v=" + Date.now(), { cache: "no-store" })
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then((data) => {
+      routine = data.routine || [];
       days = (data.days || []).filter((d) => d && d.date).sort((a, b) => a.date.localeCompare(b.date));
       idx = Math.max(0, days.length - 1);
       const last = days.length ? days[days.length - 1].date : null;
