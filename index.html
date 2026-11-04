@@ -14,7 +14,7 @@
   --cover: #1c3557; --cover-2: #284a76; --foil: #f0c96a; --ribbon: #e0a93a; --ribbon-dark: #b9831f;
   --paper: #fffaf1; --paper-edge: #efe4d2; --ink: #2a2433; --ink-soft: #776d80;
   --done: #23935a; --done-bg: #ddf5e7; --not: #d6455a; --not-bg: #fde3e7;
-  --c1: #ff7a59; --c2: #ffb020; --c3: #2fbf71; --c4: #12a5c9; --c5: #6c63ff; --c6: #e64aa0;
+  --c1: #ff7a59; --c2: #ffb020; --c3: #2fbf71; --c4: #12a5c9; --c5: #6c63ff; --c6: #e64aa0; --c7: #00a896; --c8: #9e9d24;
   --f-cover: "DM Serif Display", Georgia, serif;
   --f-body: "Nunito", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
@@ -218,7 +218,7 @@ button { font: inherit; }
 (function () {
   const $ = (id) => document.getElementById(id);
   const book = $("book"), cover = $("cover");
-  const COLORS = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6"];
+  const COLORS = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
   const LABEL = { done: "Done ✓", not_done: "Not done ✗", in_progress: "In progress", pending: "Pending", blocked: "Blocked" };
   let days = [], idx = 0;   // days oldest → newest; idx = current page
 

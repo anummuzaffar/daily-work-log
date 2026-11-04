@@ -7,7 +7,9 @@
     { "id": 3, "task": "YouTube video uploading", "project": "YouTube" },
     { "id": 4, "task": "Job applications / hunting (target 20-25)", "project": "Jobs" },
     { "id": 5, "task": "Testing", "project": "Testing" },
-    { "id": 6, "task": "Working on awarded projects", "project": "Awarded projects" }
+    { "id": 6, "task": "Working on awarded projects", "project": "Awarded projects" },
+    { "id": 7, "task": "Research on better content for more views", "project": "YouTube" },
+    { "id": 8, "task": "Research on job hunting", "project": "Jobs" }
   ],
   "days": [
     {

@@ -193,7 +193,7 @@ td { padding: 9px 14px; border-top: 1.5px solid var(--rule); vertical-align: mid
   const LABEL = { done: "Done", not_done: "Not done", in_progress: "In progress", pending: "Pending", blocked: "Blocked" };
   const ORDER = ["done", "not_done", "in_progress", "pending", "blocked"];
   const $ = (id) => document.getElementById(id);
-  const PAL = ["#ff7a59", "#ffb020", "#2fbf71", "#12a5c9", "#6c63ff", "#e64aa0"];
+  const PAL = ["#ff7a59", "#ffb020", "#2fbf71", "#12a5c9", "#6c63ff", "#e64aa0", "#00a896", "#9e9d24"];
   let DATA = { days: [] }, rows = [], charts = {};
 
   const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
