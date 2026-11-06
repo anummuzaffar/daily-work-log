@@ -1,6 +1,6 @@
 {
   "title": "Daily Work Log",
-  "updated": "2026-11-04T22:16:24Z",
+  "updated": "2026-11-06T13:18:53Z",
   "routine": [
     { "id": 1, "task": "Catalyst account: replies and project hunting", "project": "Catalyst" },
     { "id": 2, "task": "CNC account: replies and project hunting", "project": "CNC" },
@@ -12,6 +12,19 @@
     { "id": 8, "task": "Research on job hunting", "project": "Jobs" }
   ],
   "days": [
+    {
+      "date": "2026-11-05",
+      "tasks": [
+        { "rid": 1, "task": "Catalyst account: replies and project hunting", "project": "Catalyst", "status": "done", "notes": "" },
+        { "rid": 2, "task": "CNC account: replies and project hunting", "project": "CNC", "status": "done", "notes": "" },
+        { "rid": 3, "task": "YouTube video uploading", "project": "YouTube", "status": "not_done", "notes": "Insufficient credits on all 3 accounts" },
+        { "rid": 4, "task": "Job applications / hunting (target 20-25)", "project": "Jobs", "status": "done", "notes": "" },
+        { "rid": 5, "task": "Testing", "project": "Testing", "status": "done", "notes": "" },
+        { "rid": 6, "task": "Working on awarded projects", "project": "Awarded projects", "status": "done", "notes": "" },
+        { "rid": 7, "task": "Research on better content for more views", "project": "YouTube", "status": "done", "notes": "" },
+        { "rid": 8, "task": "Research on job hunting", "project": "Jobs", "status": "done", "notes": "" }
+      ]
+    },
     {
       "date": "2026-11-04",
       "tasks": [
